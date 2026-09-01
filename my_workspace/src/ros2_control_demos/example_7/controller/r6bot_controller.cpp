@@ -30,11 +30,11 @@ using config_type = controller_interface::interface_configuration_type;
 namespace ros2_control_demo_example_7
 {
 RobotController::RobotController() : controller_interface::ControllerInterface() {
-  // AGGIUNTO DA ME 
-  // ---------------------------------------------------------------------
+  // AGGIUNTO DA ME
+  // ---------------------------------------------------------------------
   command_interface_map_["position"] = &joint_position_command_interface_;
   command_interface_map_["velocity"] = &joint_velocity_command_interface_;
-  // ---------------------------------------------------------------------
+  // ---------------------------------------------------------------------
 }
 
 controller_interface::CallbackReturn RobotController::on_init()
