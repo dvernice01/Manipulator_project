@@ -4,6 +4,6 @@ docker run -it --rm --net host --ipc host --privileged \
     -v ~/.Xauthority:/root/.Xauthority \
     -e DISPLAY=$DISPLAY \
     -e XAUTHORITY=$XAUTHORITY \
-    -v ./ros_ws/:/root/ros_workspace \
+    -v ./my_workspace/:/root/ros_workspace \
     --name control_demos \
-    ros2_control_demos bash
+    ros2_control_demos bash -c "cd /root/ros_workspace && exec bash"
