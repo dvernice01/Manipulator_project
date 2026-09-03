@@ -65,6 +65,33 @@
   <link name="ft_frame"/>
   <link name="tool0"/>
 
+<!-- links for the camera -->
+  <link name="camera_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="0.05 0.03 0.03"/>
+      </geometry>
+      <material name="black">
+        <color rgba="0 0 0 1"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.05 0.03 0.03"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.1" />
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001" />
+    </inertial>
+  </link>
+
+  <link name="camera_link_optical"></link>
+
+
+
   <!-- base_joint fixes base_link to the environment -->
   <joint name="base_joint" type="fixed">
     <parent link="world"/>
@@ -133,6 +160,53 @@
     <child link="tool0"/>
     <origin xyz="0 0 0.185" rpy="0 0 0"/>
   </joint>
+
+<!-- joint for the camera -->
+  <joint name="camera_joint" type="fixed">
+    <parent link="link_6"/>
+    <child link="camera_link"/>
+    <origin xyz="0.05 0 0.05" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child link="camera_link_optical"/>
+    <origin xyz="0 0 0" rpy="-1.5707 0 -1.5707"/>
+  </joint>
+
+  <!-- ======================================================================= -->
+  <!-- RGB-D Gazebo Plugin definition                                  -->
+  <!-- ======================================================================= -->
+  <gazebo reference="camera_link">
+    <!-- Depth sensor -->
+    <sensor type="depth" name="realsense_camera">
+      <always_on>true</always_on>
+      <update_rate>15.0</update_rate> 
+      <camera>
+        <horizontal_fov>1.047198</horizontal_fov> 
+        <image>
+          <width>640</width> <!-- Resolution -->
+          <height>480</height>
+          <format>R8G8B8</format> 
+        </image>
+        <clip>
+          <near>0.05</near> <!-- Minimum vision distance (5cm) -->
+          <far>3.0</far>   <!-- Maximum vision distance (3 meters) -->
+        </clip>
+      </camera>
+
+      <!-- Ros2 plugin to convert Gazebo data to ROS topics -->
+      <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
+        <camera_name>camera</camera_name>
+        <frame_name>camera_link_optical</frame_name> 
+        
+        <!-- Topic names definition -->
+        <hack_baseline>0.07</hack_baseline>
+        <min_depth>0.05</min_depth>
+        <max_depth>3.0</max_depth>
+      </plugin>
+    </sensor>
+  </gazebo>
 
 </xacro:macro>
 
