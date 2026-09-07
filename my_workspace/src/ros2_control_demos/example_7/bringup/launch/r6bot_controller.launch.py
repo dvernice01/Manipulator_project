@@ -21,6 +21,9 @@ from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 from launch_ros.parameter_descriptions import ParameterValue
 
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+
 
 def generate_launch_description():
     return LaunchDescription(
@@ -62,6 +65,34 @@ def generate_launch_description():
                         )
                     }
                 ],
+            ),
+            Node(
+                package="ros_gz_bridge",
+                executable="parameter_bridge",
+                name="camera_bridge",
+                arguments=[
+                    "/camera/depth/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked"
+                ],
+                output="screen",
+            ),
+            # Avvia il nuovo Gazebo (ambiente vuoto in esecuzione)
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource([
+                    PathSubstitution(FindPackageShare("ros_gz_sim")),
+                    "/launch/gz_sim.launch.py",
+                ]),
+                launch_arguments={"gz_args": ["-r ", PathSubstitution(FindPackageShare("ros2_control_demo_example_7")) / "worlds" / "my_world.sdf"]}.items(),
+            ),
+            # Spawna il robot leggendo il topic /robot_description
+            Node(
+                package="ros_gz_sim",
+                executable="create",
+                arguments=[
+                    "-topic", "robot_description",
+                    "-name", "r6bot",
+                    "-allow_renaming", "true",
+                ],
+                output="screen",
             ),
             Node(
                 package="rviz2",

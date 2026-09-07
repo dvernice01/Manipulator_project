@@ -4,6 +4,7 @@ docker run -it --rm --net host --ipc host --privileged \
     -v ~/.Xauthority:/root/.Xauthority \
     -e DISPLAY=$DISPLAY \
     -e XAUTHORITY=$XAUTHORITY \
+    -e GZ_SIM_RESOURCE_PATH=/root/ros_workspace/install/ros2_control_demo_description/share \
     -v ./my_workspace/:/root/ros_workspace \
     --name control_demos \
     ros2_control_demos bash -c "cd /root/ros_workspace && exec bash"

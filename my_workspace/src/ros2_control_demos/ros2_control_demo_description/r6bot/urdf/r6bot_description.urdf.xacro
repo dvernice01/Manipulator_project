@@ -179,9 +179,10 @@
   <!-- ======================================================================= -->
   <gazebo reference="camera_link">
     <!-- Depth sensor -->
-    <sensor type="depth" name="realsense_camera">
+    <sensor type="rgbd_camera" name="realsense_camera">
       <always_on>true</always_on>
-      <update_rate>15.0</update_rate> 
+      <update_rate>15.0</update_rate>
+      <topic>camera/depth</topic> 
       <camera>
         <horizontal_fov>1.047198</horizontal_fov> 
         <image>
@@ -194,17 +195,6 @@
           <far>3.0</far>   <!-- Maximum vision distance (3 meters) -->
         </clip>
       </camera>
-
-      <!-- Ros2 plugin to convert Gazebo data to ROS topics -->
-      <plugin name="camera_controller" filename="libgazebo_ros_camera.so">
-        <camera_name>camera</camera_name>
-        <frame_name>camera_link_optical</frame_name> 
-        
-        <!-- Topic names definition -->
-        <hack_baseline>0.07</hack_baseline>
-        <min_depth>0.05</min_depth>
-        <max_depth>3.0</max_depth>
-      </plugin>
     </sensor>
   </gazebo>
 
