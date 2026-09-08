@@ -23,6 +23,7 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 from launch.actions import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import TimerAction
 
 
 def generate_launch_description():
@@ -38,6 +39,7 @@ def generate_launch_description():
                 package="controller_manager",
                 executable="ros2_control_node",
                 parameters=[
+                    {"use_sim_time": True},
                     PathSubstitution(FindPackageShare("ros2_control_demo_example_7"))
                     / "config"
                     / "r6bot_controller.yaml"
@@ -51,6 +53,7 @@ def generate_launch_description():
                 output="both",
                 parameters=[
                     {
+                        "use_sim_time": True,
                         "robot_description": ParameterValue(
                             Command(
                                 [
@@ -71,8 +74,10 @@ def generate_launch_description():
                 executable="parameter_bridge",
                 name="camera_bridge",
                 arguments=[
-                    "/camera/depth/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked"
+                    "/camera/depth/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked",
+                    "/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock"
                 ],
+                parameters=[{"use_sim_time": True}],
                 output="screen",
             ),
             # Avvia il nuovo Gazebo (ambiente vuoto in esecuzione)
@@ -92,20 +97,27 @@ def generate_launch_description():
                     "-name", "r6bot",
                     "-allow_renaming", "true",
                 ],
+                parameters=[{"use_sim_time": True}],
                 output="screen",
             ),
-            Node(
-                package="rviz2",
-                executable="rviz2",
-                name="rviz2",
-                output="log",
-                arguments=[
-                    "-d",
-                    PathSubstitution(FindPackageShare("ros2_control_demo_description"))
-                    / "r6bot/rviz"
-                    / "view_robot.rviz",
-                ],
-                condition=IfCondition(LaunchConfiguration("gui")),
+            TimerAction(
+                period=5.0,  
+                actions=[
+                    Node(
+                        package="rviz2",
+                        executable="rviz2",
+                        name="rviz2",
+                        output="log",
+                        arguments=[
+                            "-d",
+                            PathSubstitution(FindPackageShare("ros2_control_demo_description"))
+                            / "r6bot/rviz"
+                            / "view_robot.rviz",
+                        ],
+                        parameters=[{"use_sim_time": True}],
+                        condition=IfCondition(LaunchConfiguration("gui")),
+                    )
+                ]
             ),
             Node(
                 package="controller_manager",
@@ -119,6 +131,7 @@ def generate_launch_description():
                     / "config"
                     / "r6bot_controller.yaml",
                 ],
+                parameters=[{"use_sim_time": True}],
             ),
         ]
     )
