@@ -4,6 +4,8 @@
 #include <tf2/LinearMath/Quaternion.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <chrono> 
+#include <string>
+
 using namespace std::chrono_literals;
 
 class TrajectoryCreationNode : public rclcpp::Node {
@@ -16,7 +18,10 @@ public:
         cv::waitKey(1);
         cv::setMouseCallback("Mouse Trajectory", onMouseCallback, this);
         timer_ = this->create_wall_timer(20ms, std::bind(&TrajectoryCreationNode::timerCallback, this));
+    
+        current_path_.header.frame_id = "odom";
     }
+    
 
 private:
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_publisher_;
@@ -31,6 +36,7 @@ private:
     
     int last_x_pixel_ = -1;
     int last_y_pixel_ = -1;
+    int current_track_id_ = 1;
     cv::Mat canvas_;
 
     void timerCallback() {
@@ -45,55 +51,69 @@ private:
     }
 
     void processMouse(int event, int x, int y, int flags) {
-        if (event == cv::EVENT_MOUSEMOVE && (flags & cv::EVENT_FLAG_LBUTTON)) { 
-            
-            if (last_x_pixel_ == -1 && last_y_pixel_ == -1) {
+            if (event == cv::EVENT_LBUTTONDOWN) {
+                current_path_.poses.clear(); 
                 last_x_pixel_ = x;
                 last_y_pixel_ = y;
                 last_x_ = (x - center_x_) / conversion_factor_;
                 last_y_ = -(y - center_y_) / conversion_factor_;
             }
+            else if (event == cv::EVENT_MOUSEMOVE && (flags & cv::EVENT_FLAG_LBUTTON)) { 
+                
+                if (last_x_pixel_ == -1 && last_y_pixel_ == -1) {
+                    last_x_pixel_ = x;
+                    last_y_pixel_ = y;
+                    last_x_ = (x - center_x_) / conversion_factor_;
+                    last_y_ = -(y - center_y_) / conversion_factor_;
+                }
 
-            double x_meters =  (x - center_x_) / conversion_factor_;
-            double y_meters = -(y - center_y_) / conversion_factor_;
+                double x_meters =  (x - center_x_) / conversion_factor_;
+                double y_meters = -(y - center_y_) / conversion_factor_;
 
-            geometry_msgs::msg::PoseStamped new_point;
-            
-            new_point.pose.position.x = x_meters;
-            new_point.pose.position.y = y_meters;
+                geometry_msgs::msg::PoseStamped new_point;
+                
+                new_point.header.frame_id = std::to_string(current_track_id_);
+                
+                new_point.pose.position.x = x_meters;
+                new_point.pose.position.y = y_meters;
 
-            double dx = x_meters - last_x_;
-            double dy = y_meters - last_y_;
-            double yaw = std::atan2(dy, dx);
+                double dx = x_meters - last_x_;
+                double dy = y_meters - last_y_;
+                double yaw = std::atan2(dy, dx);
 
-            tf2::Quaternion q;
-            q.setRPY(0.0, 0.0, yaw); 
-            new_point.pose.orientation.x = q.x();
-            new_point.pose.orientation.y = q.y();
-            new_point.pose.orientation.z = q.z();
-            new_point.pose.orientation.w = q.w();
-            
-            last_x_ = x_meters;
-            last_y_ = y_meters;
+                tf2::Quaternion q;
+                q.setRPY(0.0, 0.0, yaw); 
+                new_point.pose.orientation.x = q.x();
+                new_point.pose.orientation.y = q.y();
+                new_point.pose.orientation.z = q.z();
+                new_point.pose.orientation.w = q.w();
+                
+                last_x_ = x_meters;
+                last_y_ = y_meters;
 
-            current_path_.poses.push_back(new_point);
+                current_path_.poses.push_back(new_point);
+                
+                cv::line(canvas_, cv::Point(last_x_pixel_, last_y_pixel_), cv::Point(x, y), cv::Scalar(255, 0, 0), 2);
+                last_x_pixel_ = x;
+                last_y_pixel_ = y;
+                
+                cv::imshow("Mouse Trajectory", canvas_);
+                cv::waitKey(1);
+                
+            } 
 
-            path_publisher_->publish(current_path_);
-            
-            cv::line(canvas_, cv::Point(last_x_pixel_, last_y_pixel_), cv::Point(x, y), cv::Scalar(255, 0, 0), 2);
-            last_x_pixel_ = x;
-            last_y_pixel_ = y;
-            
-            cv::imshow("Mouse Trajectory", canvas_);
-            cv::waitKey(1);
-            
-        } else if (event == cv::EVENT_LBUTTONUP) {
+            else if (event == cv::EVENT_LBUTTONUP) {
+                
+                if (!current_path_.poses.empty()) {
+                    path_publisher_->publish(current_path_);
+                }
 
-            last_x_pixel_ = -1;
-            last_y_pixel_ = -1;
+                current_track_id_ += 1;
+                last_x_pixel_ = -1;
+                last_y_pixel_ = -1;
+            }
         }
-    }
-};
+    };
 
 int main(int argc, char **argv) {
     rclcpp::init(argc, argv);
