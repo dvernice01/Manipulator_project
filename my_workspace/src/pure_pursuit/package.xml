@@ -9,6 +9,16 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <!-- Dipendenze ROS 2 -->
+  <depend>rclcpp</depend>
+  <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>tf2</depend>
+
+  <!-- Dipendenza di sistema per OpenCV (verrà risolta da rosdep/apt) -->
+  <build_depend>libopencv-dev</build_depend>
+  <exec_depend>libopencv-dev</exec_depend>
+
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
 
