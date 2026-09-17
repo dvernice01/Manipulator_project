@@ -30,7 +30,8 @@ RUN cd /home/ros2_ws/ \
   && colcon build --cmake-args -DBUILD_TESTING=OFF --parallel-workers 1 --symlink-install --packages-up-to ros2_control_demos
 
 RUN apt-get install -y ros-${ROS_DISTRO}-joint-state-publisher-gui ros-${ROS_DISTRO}-rviz2
-RUN apt update && apt install -y libopencv-highgui-dev
+RUN apt-get update && apt-get install -y --no-install-recommends libopencv-dev
+
 COPY Dockerfile/entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
 
