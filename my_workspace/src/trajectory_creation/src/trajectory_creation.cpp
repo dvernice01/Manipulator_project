@@ -5,6 +5,8 @@
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <chrono> 
 #include <string>
+#include <thread>
+#include <csignal>
 
 using namespace std::chrono_literals;
 
@@ -17,15 +19,12 @@ public:
         cv::imshow("Mouse Trajectory", canvas_); 
         cv::waitKey(1);
         cv::setMouseCallback("Mouse Trajectory", onMouseCallback, this);
-        timer_ = this->create_wall_timer(20ms, std::bind(&TrajectoryCreationNode::timerCallback, this));
     
         current_path_.header.frame_id = "odom";
     }
     
-
 private:
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_publisher_;
-    rclcpp::TimerBase::SharedPtr timer_;
     nav_msgs::msg::Path current_path_;
 
     double conversion_factor_ = 100.0; 
@@ -38,10 +37,6 @@ private:
     int last_y_pixel_ = -1;
     int current_track_id_ = 1;
     cv::Mat canvas_;
-
-    void timerCallback() {
-        cv::waitKey(1);
-    }
 
     static void onMouseCallback(int event, int x, int y, int flags, void* userdata) {
         TrajectoryCreationNode* node = static_cast<TrajectoryCreationNode*>(userdata);
@@ -115,9 +110,30 @@ private:
         }
     };
 
+// Automatically called when it's clicked Ctrl+C
+void signalHandler(int signum) {
+    (void)signum; 
+    rclcpp::shutdown(); // Stopping rclcpp::ok()
+}
+
 int main(int argc, char **argv) {
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<TrajectoryCreationNode>());
-    rclcpp::shutdown();
+    
+    //  Ctrl+C (SIGINT)
+    std::signal(SIGINT, signalHandler);
+
+    auto node = std::make_shared<TrajectoryCreationNode>();
+    rclcpp::executors::SingleThreadedExecutor executor;
+    executor.add_node(node);
+
+    while (rclcpp::ok()) {
+        executor.spin_some();      
+        
+        int key = cv::waitKey(10); 
+        if (key == 27) {           // ESC key pressed
+            rclcpp::shutdown();
+        }
+    }
+    cv::destroyAllWindows();
     return 0;
 }
