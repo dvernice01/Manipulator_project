@@ -4,8 +4,7 @@
 #include <nav_msgs/msg/odometry.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <std_msgs/msg/bool.hpp>
-#include <tf2_ros/buffer.hpp> 
-#include <tf2_ros/transform_listener.hpp> 
+
 
 class PurePursuitNode : public rclcpp::Node {
 public:
@@ -14,16 +13,13 @@ public:
         linear_velocity_ = this->declare_parameter<double>("linear_velocity", 0.5);
         path_subscriber_ = this->create_subscription<nav_msgs::msg::Path>("PathPlanner/path", 10, std::bind(&PurePursuitNode::pathCallback, this, std::placeholders::_1));
         odom_subscriber_ = this->create_subscription<nav_msgs::msg::Odometry>("bicycle_steering_controller/odometry", 10, std::bind(&PurePursuitNode::odomCallback, this, std::placeholders::_1));
-        cmd_vel_publisher_ = this->create_publisher<geometry_msgs::msg::TwistStamped>("/bicycle_steering_controller/reference", 10);        buffer_memory_ = std::make_unique<tf2_ros::Buffer>(this->get_clock());
-        listener_memory_ = std::make_shared<tf2_ros::TransformListener>(*buffer_memory_);
+        cmd_vel_publisher_ = this->create_publisher<geometry_msgs::msg::TwistStamped>("/bicycle_steering_controller/reference", 10);        
         stop_listener_ = this->create_subscription<std_msgs::msg::Bool>("PathPlanner/stop", 10, std::bind(&PurePursuitNode::stopCallback, this, std::placeholders::_1));
     }
 private:
     rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr                path_subscriber_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr            odom_subscriber_;
     rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr      cmd_vel_publisher_;
-    std::unique_ptr<tf2_ros::Buffer>                                    buffer_memory_;
-    std::shared_ptr<tf2_ros::TransformListener>                         listener_memory_;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr                stop_listener_;
     nav_msgs::msg::Path current_path_;
     geometry_msgs::msg::Pose current_pose_;

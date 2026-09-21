@@ -14,15 +14,27 @@ using namespace std::chrono_literals;
 class TrajectoryCreationNode : public rclcpp::Node {
 public:
     TrajectoryCreationNode() : Node("trajectory_creation_node") {
+        std::cout << "  -> [Costruttore] Inizio creazione nodo ROS" << std::endl;
         path_publisher_ = this->create_publisher<nav_msgs::msg::Path>("PathPlanner/path", 10);
         stop_publisher_ = this->create_publisher<std_msgs::msg::Bool>("PathPlanner/stop", 10);
+        
+        std::cout << "  -> [Costruttore] Creazione della matrice immagine (canvas)" << std::endl;
         canvas_ = cv::Mat(600, 800, CV_8UC3, cv::Scalar(255, 255, 255));
+        
+        std::cout << "  -> [Costruttore] Tento di aprire namedWindow..." << std::endl;
         cv::namedWindow("Mouse Trajectory");
+        
+        std::cout << "  -> [Costruttore] Tento di eseguire imshow..." << std::endl;
         cv::imshow("Mouse Trajectory", canvas_); 
+        
+        std::cout << "  -> [Costruttore] Tento di eseguire waitKey(1)..." << std::endl;
         cv::waitKey(1);
+        
+        std::cout << "  -> [Costruttore] Imposto la callback del mouse..." << std::endl;
         cv::setMouseCallback("Mouse Trajectory", onMouseCallback, this);
     
         current_path_.header.frame_id = "odom";
+        std::cout << "  -> [Costruttore] Costruttore completato con successo!" << std::endl;
     }
     
 private:
@@ -127,23 +139,35 @@ void signalHandler(int signum) {
 }
 
 int main(int argc, char **argv) {
+    std::cout << "📍 Step 1: Inizio del main e rclcpp::init" << std::endl;
     rclcpp::init(argc, argv);
-    
-    //  Ctrl+C (SIGINT)
     std::signal(SIGINT, signalHandler);
 
+    std::cout << "📍 Step 2: PROVA MODIFICA" << std::endl;
     auto node = std::make_shared<TrajectoryCreationNode>();
+
+    std::cout << "📍 Step 3: Avvio del thread ROS 2" << std::endl;
     rclcpp::executors::SingleThreadedExecutor executor;
     executor.add_node(node);
+    std::thread ros_thread([&executor]() {
+        executor.spin(); 
+    });
 
+    std::cout << "📍 Step 4: Entrata nel ciclo while principale" << std::endl;
     while (rclcpp::ok()) {
-        executor.spin_some();      
-        
         int key = cv::waitKey(10); 
-        if (key == 27) {           // ESC key pressed
+        if (key == 27) {
             rclcpp::shutdown();
         }
     }
+    // 3. Pulizia finale
     cv::destroyAllWindows();
+    
+    if (ros_thread.joinable()) {
+        ros_thread.join(); 
+    }
+
     return 0;
 }
+    
+    // ... resto del codice per la chiusura ...
