@@ -3,6 +3,7 @@
 #include <opencv2/opencv.hpp>
 #include <tf2/LinearMath/Quaternion.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
+#include <std_msgs/msg/bool.hpp>
 #include <chrono> 
 #include <string>
 #include <thread>
@@ -14,6 +15,7 @@ class TrajectoryCreationNode : public rclcpp::Node {
 public:
     TrajectoryCreationNode() : Node("trajectory_creation_node") {
         path_publisher_ = this->create_publisher<nav_msgs::msg::Path>("PathPlanner/path", 10);
+        stop_publisher_ = this->create_publisher<std_msgs::msg::Bool>("PathPlanner/stop", 10);
         canvas_ = cv::Mat(600, 800, CV_8UC3, cv::Scalar(255, 255, 255));
         cv::namedWindow("Mouse Trajectory");
         cv::imshow("Mouse Trajectory", canvas_); 
@@ -25,6 +27,7 @@ public:
     
 private:
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_publisher_;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr stop_publisher_;
     nav_msgs::msg::Path current_path_;
 
     double conversion_factor_ = 100.0; 
@@ -46,12 +49,19 @@ private:
     }
 
     void processMouse(int event, int x, int y, int flags) {
+        RCLCPP_INFO(this->get_logger(), "Mouse event: %d at (%d, %d)", event, x, y);
+        std::cout << "Mouse event: " << event << " at (" << x << ", " << y << ")" << std::endl;
             if (event == cv::EVENT_LBUTTONDOWN) {
                 current_path_.poses.clear(); 
                 last_x_pixel_ = x;
                 last_y_pixel_ = y;
                 last_x_ = (x - center_x_) / conversion_factor_;
                 last_y_ = -(y - center_y_) / conversion_factor_;
+            }
+            else if (event == cv::EVENT_MBUTTONDOWN) {
+                std_msgs::msg::Bool stop_msg;
+                stop_msg.data = true;
+                stop_publisher_->publish(stop_msg);
             }
             else if (event == cv::EVENT_MOUSEMOVE && (flags & cv::EVENT_FLAG_LBUTTON)) { 
                 

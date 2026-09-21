@@ -14,6 +14,7 @@ find_package(tf2 REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 # 2. Crea l'eseguibile
 add_executable(pure_pursuit_node src/pure_pursuit.cpp)
 
@@ -32,6 +33,7 @@ target_link_libraries(pure_pursuit_node PUBLIC
   geometry_msgs::geometry_msgs
   tf2_geometry_msgs::tf2_geometry_msgs
   tf2_ros::tf2_ros
+  std_msgs::std_msgs
 )
 
 # 5. Regola di installazione FONDAMENTALE per poter fare 'ros2 run'
