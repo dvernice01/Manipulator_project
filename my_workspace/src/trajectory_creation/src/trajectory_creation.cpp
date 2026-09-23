@@ -1,9 +1,14 @@
 #include <rclcpp/rclcpp.hpp>
-#include <nav_msgs/msg/path.hpp>
 #include <opencv2/opencv.hpp>
 #include <tf2/LinearMath/Quaternion.hpp>
+
+#include <nav_msgs/msg/path.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
-#include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/int8.hpp>
+
+#include <control_msgs/srv/set_odometry.hpp> 
+// #include <gazebo_msgs/srv/set_entity_state.hpp> // Header for Gazebo
+
 #include <chrono> 
 #include <string>
 #include <thread>
@@ -11,35 +16,68 @@
 
 using namespace std::chrono_literals;
 
+enum RobotState : int8_t {
+    NORMAL = 0,
+    STOP = 1,
+    FORWARD = 2
+};
+
 class TrajectoryCreationNode : public rclcpp::Node {
 public:
     TrajectoryCreationNode() : Node("trajectory_creation_node") {
         std::cout << "  -> [Costruttore] Inizio creazione nodo ROS" << std::endl;
         path_publisher_ = this->create_publisher<nav_msgs::msg::Path>("PathPlanner/path", 10);
-        stop_publisher_ = this->create_publisher<std_msgs::msg::Bool>("PathPlanner/stop", 10);
+        state_publisher_ = this->create_publisher<std_msgs::msg::Int8>("PathPlanner/command", 10);
+        odom_reset_client_ = this->create_client<control_msgs::srv::SetOdometry>("/bicycle_steering_controller/set_odometry");
         
-        std::cout << "  -> [Costruttore] Creazione della matrice immagine (canvas)" << std::endl;
         canvas_ = cv::Mat(600, 800, CV_8UC3, cv::Scalar(255, 255, 255));
-        
-        std::cout << "  -> [Costruttore] Tento di aprire namedWindow..." << std::endl;
+    
         cv::namedWindow("Mouse Trajectory");
-        
-        std::cout << "  -> [Costruttore] Tento di eseguire imshow..." << std::endl;
         cv::imshow("Mouse Trajectory", canvas_); 
-        
-        std::cout << "  -> [Costruttore] Tento di eseguire waitKey(1)..." << std::endl;
         cv::waitKey(1);
-        
-        std::cout << "  -> [Costruttore] Imposto la callback del mouse..." << std::endl;
         cv::setMouseCallback("Mouse Trajectory", onMouseCallback, this);
     
         current_path_.header.frame_id = "odom";
-        std::cout << "  -> [Costruttore] Costruttore completato con successo!" << std::endl;
     }
     
+    void ClearFunction() {
+        current_path_.poses.clear();
+        canvas_.setTo(cv::Scalar(255, 255, 255));
+        cv::imshow("Mouse Trajectory", canvas_);
+    }
+    void SpawnRobot() {
+        // RViz (Odometry Reset)
+        if (!odom_reset_client_->wait_for_service(std::chrono::seconds(1))) {
+            RCLCPP_WARN(this->get_logger(), "Odometry reset service not available!");
+            return;
+        }
+        auto odom_request = std::make_shared<control_msgs::srv::SetOdometry::Request>();
+        odom_request->x = 0.0;
+        odom_request->y = 0.0;
+        odom_request->yaw = 0.0;
+        odom_reset_client_->async_send_request(odom_request);
+        RCLCPP_INFO(this->get_logger(), "Odometry reset request sent.");
+
+        /* 
+        // 3b.Gazebo (Teletransport)
+        if (gazebo_client_->wait_for_service(std::chrono::seconds(1))) {
+            auto gz_request = std::make_shared<gazebo_msgs::srv::SetEntityState::Request>();
+            gz_request->state.name = "robot_name"; // Replace with your robot's name in Gazebo
+            gz_request->state.pose.position.x = 0.0;
+            gz_request->state.pose.position.y = 0.0;
+            gz_request->state.pose.position.z = 0.0;
+            gazebo_client_->async_send_request(gz_request);
+        }
+        */
+    }
+
 private:
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_publisher_;
-    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr stop_publisher_;
+    rclcpp::Publisher<std_msgs::msg::Int8>::SharedPtr state_publisher_;
+
+    rclcpp::Client<control_msgs::srv::SetOdometry>::SharedPtr odom_reset_client_;
+    // rclcpp::Client<gazebo_msgs::srv::SetEntityState>::SharedPtr gazebo_client_;
+
     nav_msgs::msg::Path current_path_;
 
     double conversion_factor_ = 100.0; 
@@ -71,11 +109,26 @@ private:
                 last_y_ = -(y - center_y_) / conversion_factor_;
             }
             else if (event == cv::EVENT_MBUTTONDOWN) {
-                std_msgs::msg::Bool stop_msg;
-                stop_msg.data = true;
-                stop_publisher_->publish(stop_msg);
+                std_msgs::msg::Int8 state_msg;
+                state_msg.data = STOP;
+                state_publisher_->publish(state_msg);
             }
+
+            else if (event == cv::EVENT_LBUTTONDBLCLK) {
+                std_msgs::msg::Int8 state_msg;
+                state_msg.data = FORWARD;
+                state_publisher_->publish(state_msg);
+            }
+
+            // else if (event == cv::EVENT_RBUTTONDOWN) {
+            //     if (!current_path_.poses.empty()) {
+            //         path_publisher_->publish(current_path_);
+            //     }
+            // }
             else if (event == cv::EVENT_MOUSEMOVE && (flags & cv::EVENT_FLAG_LBUTTON)) { 
+                std_msgs::msg::Int8 state_msg;
+                state_msg.data = NORMAL;
+                state_publisher_->publish(state_msg);
                 
                 if (last_x_pixel_ == -1 && last_y_pixel_ == -1) {
                     last_x_pixel_ = x;
@@ -139,28 +192,31 @@ void signalHandler(int signum) {
 }
 
 int main(int argc, char **argv) {
-    std::cout << "📍 Step 1: Inizio del main e rclcpp::init" << std::endl;
     rclcpp::init(argc, argv);
     std::signal(SIGINT, signalHandler);
 
-    std::cout << "📍 Step 2: PROVA MODIFICA" << std::endl;
     auto node = std::make_shared<TrajectoryCreationNode>();
 
-    std::cout << "📍 Step 3: Avvio del thread ROS 2" << std::endl;
     rclcpp::executors::SingleThreadedExecutor executor;
     executor.add_node(node);
     std::thread ros_thread([&executor]() {
         executor.spin(); 
     });
 
-    std::cout << "📍 Step 4: Entrata nel ciclo while principale" << std::endl;
     while (rclcpp::ok()) {
         int key = cv::waitKey(10); 
+        
         if (key == 27) {
             rclcpp::shutdown();
         }
+        else if (key == -1) { 
+            node->ClearFunction();
+        }
+        else if (key == 32) { 
+            node->SpawnRobot();
+        }
     }
-    // 3. Pulizia finale
+
     cv::destroyAllWindows();
     
     if (ros_thread.joinable()) {
@@ -170,4 +226,3 @@ int main(int argc, char **argv) {
     return 0;
 }
     
-    // ... resto del codice per la chiusura ...

@@ -3,8 +3,13 @@
 #include <geometry_msgs/msg/twist_stamped.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
-#include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/int8.hpp>
 
+enum RobotState : int8_t {
+    NORMAL = 0,
+    STOP = 1,
+    FORWARD = 2
+};
 
 class PurePursuitNode : public rclcpp::Node {
 public:
@@ -14,22 +19,22 @@ public:
         path_subscriber_ = this->create_subscription<nav_msgs::msg::Path>("PathPlanner/path", 10, std::bind(&PurePursuitNode::pathCallback, this, std::placeholders::_1));
         odom_subscriber_ = this->create_subscription<nav_msgs::msg::Odometry>("bicycle_steering_controller/odometry", 10, std::bind(&PurePursuitNode::odomCallback, this, std::placeholders::_1));
         cmd_vel_publisher_ = this->create_publisher<geometry_msgs::msg::TwistStamped>("/bicycle_steering_controller/reference", 10);        
-        stop_listener_ = this->create_subscription<std_msgs::msg::Bool>("PathPlanner/stop", 10, std::bind(&PurePursuitNode::stopCallback, this, std::placeholders::_1));
+        stop_listener_ = this->create_subscription<std_msgs::msg::Int8>("PathPlanner/command", 10, std::bind(&PurePursuitNode::CommandCallback, this, std::placeholders::_1));
     }
 private:
     rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr                path_subscriber_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr            odom_subscriber_;
     rclcpp::Publisher<geometry_msgs::msg::TwistStamped>::SharedPtr      cmd_vel_publisher_;
-    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr                stop_listener_;
+    rclcpp::Subscription<std_msgs::msg::Int8>::SharedPtr                stop_listener_;
     nav_msgs::msg::Path current_path_;
     geometry_msgs::msg::Pose current_pose_;
 
     double lookahead_distance_;
     double linear_velocity_;
     size_t current_target_index_ = 0;  
-    double L_d = 2.0;                  
+    double L_d = 0.65;                  
     double v = 0.2;
-    bool emergency_stop_active_ = false;
+    int8_t command_flag_ = NORMAL;
     int contatore = 0;
     
     void pathCallback(const nav_msgs::msg::Path::SharedPtr msg) {
@@ -47,10 +52,18 @@ private:
         current_target_index_ = 0; 
     }
 
-    void stopCallback(const std_msgs::msg::Bool::SharedPtr msg) {
-        if (msg->data) {
-            emergency_stop_active_ = true;
+    void CommandCallback(const std_msgs::msg::Int8::SharedPtr msg) {
+        if (msg->data == STOP) {
+            command_flag_ = STOP;
             std::cout << "Stop event received " << contatore++ << std::endl;
+        }
+        else if (msg->data == FORWARD) {
+            command_flag_ = FORWARD;
+            std::cout << "Forward event received " << contatore++ << std::endl;
+        }
+        else if (msg->data == NORMAL) {
+            command_flag_ = NORMAL;
+            // std::cout << "Normal event received " << contatore++ << std::endl;
         }
     }
 
@@ -60,8 +73,31 @@ private:
     }
 
     void computeControlCommand() {
-        if (current_path_.poses.empty()) {
+        if (command_flag_ == STOP) {
+            geometry_msgs::msg::TwistStamped stop_msg;
+            stop_msg.header.stamp = this->now();
+            stop_msg.header.frame_id = "base_link";
+            stop_msg.twist.linear.x = 0.0;
+            stop_msg.twist.angular.z = 0.0;
+            cmd_vel_publisher_->publish(stop_msg);
+            
+            current_path_.poses.clear(); 
             return;
+        }
+        
+        if (command_flag_ == FORWARD) {
+            geometry_msgs::msg::TwistStamped forward_msg;
+            forward_msg.header.stamp = this->now();
+            forward_msg.header.frame_id = "base_link";
+            forward_msg.twist.linear.x = v; 
+            forward_msg.twist.angular.z = 0.0;
+            cmd_vel_publisher_->publish(forward_msg);
+            
+            return; 
+        }
+        
+        if (current_path_.poses.empty()) {
+            return; 
         }
 
         double robot_x = current_pose_.position.x;
@@ -84,19 +120,6 @@ private:
             }
         }
 
-        if (emergency_stop_active_) {
-            geometry_msgs::msg::TwistStamped stop_msg;
-            stop_msg.header.stamp = this->now();
-            stop_msg.header.frame_id = "base_link";
-            stop_msg.twist.linear.x = 0.0;
-            stop_msg.twist.angular.z = 0.0;
-            cmd_vel_publisher_->publish(stop_msg);
-            
-            current_path_.poses.clear(); 
-            emergency_stop_active_ = false;
-            return; 
-        }
-
         if (!target_found) {
             size_t last_index = current_path_.poses.size() - 1;
             target_x = current_path_.poses[last_index].pose.position.x;
@@ -105,7 +128,7 @@ private:
 
             double final_distance = std::hypot(target_x - robot_x, target_y - robot_y);
             
-            if (final_distance < 0.15 || emergency_stop_active_) {
+            if (final_distance < 0.15) {
                 geometry_msgs::msg::TwistStamped stop_msg;
                 stop_msg.header.stamp = this->now();
                 stop_msg.header.frame_id = "base_link";
@@ -114,6 +137,7 @@ private:
                 cmd_vel_publisher_->publish(stop_msg);
                 
                 current_path_.poses.clear(); 
+                command_flag_ = STOP; 
                 return; 
             }
         }

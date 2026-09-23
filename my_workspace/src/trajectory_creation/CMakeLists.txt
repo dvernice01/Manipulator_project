@@ -13,6 +13,7 @@ find_package(OpenCV REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(control_msgs REQUIRED)
 
 add_executable(trajectory_creation_node src/trajectory_creation.cpp)
 target_link_libraries(trajectory_creation_node PUBLIC
@@ -21,6 +22,7 @@ target_link_libraries(trajectory_creation_node PUBLIC
   tf2::tf2
   geometry_msgs::geometry_msgs
   std_msgs::std_msgs
+  control_msgs::control_msgs
   ${OpenCV_LIBRARIES}
 )
 
