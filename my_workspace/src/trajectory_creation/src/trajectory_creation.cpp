@@ -19,7 +19,9 @@ using namespace std::chrono_literals;
 enum RobotState : int8_t {
     NORMAL = 0,
     STOP = 1,
-    FORWARD = 2
+    FORWARD = 2,
+    REVERSE_NORMAL = 3,
+    REVERSE_FORWARD = 4
 };
 
 class TrajectoryCreationNode : public rclcpp::Node {
@@ -80,7 +82,7 @@ private:
 
     nav_msgs::msg::Path current_path_;
 
-    double conversion_factor_ = 100.0; 
+    double conversion_factor_ = 200.0; 
     double center_x_ = 400.0;
     double center_y_ = 300.0;
     double last_x_ = 0.0; 
@@ -99,8 +101,6 @@ private:
     }
 
     void processMouse(int event, int x, int y, int flags) {
-        RCLCPP_INFO(this->get_logger(), "Mouse event: %d at (%d, %d)", event, x, y);
-        std::cout << "Mouse event: " << event << " at (" << x << ", " << y << ")" << std::endl;
             if (event == cv::EVENT_LBUTTONDOWN) {
                 current_path_.poses.clear(); 
                 last_x_pixel_ = x;
@@ -115,20 +115,29 @@ private:
             }
 
             else if (event == cv::EVENT_LBUTTONDBLCLK) {
-                std_msgs::msg::Int8 state_msg;
-                state_msg.data = FORWARD;
-                state_publisher_->publish(state_msg);
+                if (flags & cv::EVENT_FLAG_CTRLKEY) {
+                    std_msgs::msg::Int8 state_msg;
+                    state_msg.data = REVERSE_FORWARD;
+                    state_publisher_->publish(state_msg);
+                }
+                else {
+                    std_msgs::msg::Int8 state_msg;
+                    state_msg.data = FORWARD;
+                    state_publisher_->publish(state_msg);
+                }
             }
 
-            // else if (event == cv::EVENT_RBUTTONDOWN) {
-            //     if (!current_path_.poses.empty()) {
-            //         path_publisher_->publish(current_path_);
-            //     }
-            // }
             else if (event == cv::EVENT_MOUSEMOVE && (flags & cv::EVENT_FLAG_LBUTTON)) { 
-                std_msgs::msg::Int8 state_msg;
-                state_msg.data = NORMAL;
-                state_publisher_->publish(state_msg);
+                if (flags & cv::EVENT_FLAG_CTRLKEY) {
+                    std_msgs::msg::Int8 state_msg;
+                    state_msg.data = REVERSE_NORMAL;
+                    state_publisher_->publish(state_msg);
+                }
+                else {
+                    std_msgs::msg::Int8 state_msg;
+                    state_msg.data = NORMAL;
+                    state_publisher_->publish(state_msg);
+                }
                 
                 if (last_x_pixel_ == -1 && last_y_pixel_ == -1) {
                     last_x_pixel_ = x;

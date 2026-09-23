@@ -4,11 +4,14 @@
 #include <nav_msgs/msg/odometry.hpp>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <std_msgs/msg/int8.hpp>
+#include <cmath>
 
 enum RobotState : int8_t {
     NORMAL = 0,
     STOP = 1,
-    FORWARD = 2
+    FORWARD = 2,
+    REVERSE_NORMAL = 3,
+    REVERSE_FORWARD = 4
 };
 
 class PurePursuitNode : public rclcpp::Node {
@@ -65,6 +68,14 @@ private:
             command_flag_ = NORMAL;
             // std::cout << "Normal event received " << contatore++ << std::endl;
         }
+        else if (msg->data == REVERSE_NORMAL) {
+            command_flag_ = REVERSE_NORMAL;
+            std::cout << "Reverse Normal event received " << contatore++ << std::endl;
+        }
+        else if (msg->data == REVERSE_FORWARD) {
+            command_flag_ = REVERSE_FORWARD;
+            std::cout << "Reverse Forward event received " << contatore++ << std::endl;
+        }
     }
 
     void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg) {
@@ -82,20 +93,21 @@ private:
             cmd_vel_publisher_->publish(stop_msg);
             
             current_path_.poses.clear(); 
-            return;
-        }
-        
-        if (command_flag_ == FORWARD) {
-            geometry_msgs::msg::TwistStamped forward_msg;
-            forward_msg.header.stamp = this->now();
-            forward_msg.header.frame_id = "base_link";
-            forward_msg.twist.linear.x = v; 
-            forward_msg.twist.angular.z = 0.0;
-            cmd_vel_publisher_->publish(forward_msg);
-            
             return; 
         }
         
+        if (command_flag_ == FORWARD || command_flag_ == REVERSE_FORWARD) {
+            geometry_msgs::msg::TwistStamped straight_msg;
+            straight_msg.header.stamp = this->now();
+            straight_msg.header.frame_id = "base_link";
+            
+            straight_msg.twist.linear.x = (command_flag_ == FORWARD) ? v : -v; 
+            straight_msg.twist.angular.z = 0.0;
+            cmd_vel_publisher_->publish(straight_msg);
+            
+            return; 
+        }
+
         if (current_path_.poses.empty()) {
             return; 
         }
@@ -142,8 +154,6 @@ private:
             }
         }
 
-        double angle_to_target = std::atan2(target_y - robot_y, target_x - robot_x);
-
         tf2::Quaternion q(
             current_pose_.orientation.x,
             current_pose_.orientation.y,
@@ -154,6 +164,13 @@ private:
         double roll, pitch, yaw;
         m.getRPY(roll, pitch, yaw);
 
+        double current_v = v; 
+        if (command_flag_ == REVERSE_NORMAL) {
+            yaw += M_PI;      
+            current_v = -v;   
+        }
+
+        double angle_to_target = std::atan2(target_y - robot_y, target_x - robot_x);
         double alpha = angle_to_target - yaw;
         alpha = std::atan2(std::sin(alpha), std::cos(alpha));
 
@@ -161,13 +178,13 @@ private:
         double omega = 0.0;
         
         if (distance_to_target > 0.001) {
-            omega = (2.0 * v * std::sin(alpha)) / distance_to_target;
+            omega = (2.0 * current_v * std::sin(alpha)) / distance_to_target;
         }
 
         geometry_msgs::msg::TwistStamped cmd_msg;
         cmd_msg.header.stamp = this->now();
         cmd_msg.header.frame_id = "base_link";
-        cmd_msg.twist.linear.x = v;
+        cmd_msg.twist.linear.x = current_v;
         cmd_msg.twist.angular.z = omega;
         
         cmd_vel_publisher_->publish(cmd_msg);
