@@ -107,5 +107,19 @@ def generate_launch_description():
                 ],
                 condition=UnlessCondition(LaunchConfiguration("remap_odometry_tf")),
             ),
+
+            Node(
+                package='pure_pursuit',
+                executable='pure_pursuit_node',
+                name='pure_pursuit_node',
+                output='screen'
+            ),
+
+            Node(
+                package='trajectory_creation',
+                executable='trajectory_creation_node',
+                name='trajectory_creation_node',
+                output='screen'
+            ),
         ]
     )

@@ -35,24 +35,41 @@ private:
     double lookahead_distance_;
     double linear_velocity_;
     size_t current_target_index_ = 0;  
-    double L_d = 0.65;                  
+    double L_d = 0.6;                  
     double v = 0.2;
     int8_t command_flag_ = NORMAL;
     int contatore = 0;
     
     void pathCallback(const nav_msgs::msg::Path::SharedPtr msg) {
-        if (msg->poses.empty()) return;
+        current_path_ = *msg;
 
-        current_path_ = *msg; 
-        double delta_x = current_pose_.position.x - current_path_.poses[0].pose.position.x;
-        double delta_y = current_pose_.position.y - current_path_.poses[0].pose.position.y;
+        tf2::Quaternion q(
+            current_pose_.orientation.x,
+            current_pose_.orientation.y,
+            current_pose_.orientation.z,
+            current_pose_.orientation.w
+        );
+        tf2::Vector3 v(current_pose_.position.x, current_pose_.position.y, current_pose_.position.z);
+        tf2::Transform robot_transform(q, v);
 
         for (size_t i = 0; i < current_path_.poses.size(); i++) {
-            current_path_.poses[i].pose.position.x += delta_x; 
-            current_path_.poses[i].pose.position.y += delta_y;
+            tf2::Vector3 p(
+                current_path_.poses[i].pose.position.x,
+                current_path_.poses[i].pose.position.y,
+                0.0
+            );
+            if (command_flag_ == REVERSE_NORMAL){
+                p.setX(-p.x());
+                p.setY(-p.y());
+            } 
+
+            tf2::Vector3 transformed_p = robot_transform * p;
+
+            current_path_.poses[i].pose.position.x = transformed_p.x();
+            current_path_.poses[i].pose.position.y = transformed_p.y();
         }
         
-        current_target_index_ = 0; 
+        current_target_index_ = 0;
     }
 
     void CommandCallback(const std_msgs::msg::Int8::SharedPtr msg) {
@@ -112,6 +129,16 @@ private:
             return; 
         }
 
+        tf2::Quaternion q(
+            current_pose_.orientation.x,
+            current_pose_.orientation.y,
+            current_pose_.orientation.z,
+            current_pose_.orientation.w
+        );
+        tf2::Matrix3x3 m(q);
+        double roll, pitch, yaw;
+        m.getRPY(roll, pitch, yaw);
+
         double robot_x = current_pose_.position.x;
         double robot_y = current_pose_.position.y;
         
@@ -125,7 +152,16 @@ private:
 
             double distance = std::hypot(target_x - robot_x, target_y - robot_y);
 
-            if (distance >= L_d) {
+            double dx = target_x - robot_x;
+            double dy = target_y - robot_y;
+            double local_x = dx * std::cos(yaw) + dy * std::sin(yaw);
+
+            if (command_flag_ == REVERSE_NORMAL) {
+                local_x = -local_x; 
+            }
+            bool is_valid_direction = (local_x > 0.0);
+
+            if (distance >= L_d && is_valid_direction) {
                 current_target_index_ = i;
                 target_found = true;
                 break;
@@ -154,19 +190,8 @@ private:
             }
         }
 
-        tf2::Quaternion q(
-            current_pose_.orientation.x,
-            current_pose_.orientation.y,
-            current_pose_.orientation.z,
-            current_pose_.orientation.w
-        );
-        tf2::Matrix3x3 m(q);
-        double roll, pitch, yaw;
-        m.getRPY(roll, pitch, yaw);
-
         double current_v = v; 
         if (command_flag_ == REVERSE_NORMAL) {
-            yaw += M_PI;      
             current_v = -v;   
         }
 
