@@ -35,7 +35,7 @@ private:
     double lookahead_distance_;
     double linear_velocity_;
     size_t current_target_index_ = 0;  
-    double L_d = 0.6;                  
+    double L_d = 0.6; // Basing on the robot's wheelbase           
     double v = 0.2;
     int8_t command_flag_ = NORMAL;
     int contatore = 0;
@@ -43,6 +43,7 @@ private:
     void pathCallback(const nav_msgs::msg::Path::SharedPtr msg) {
         current_path_ = *msg;
 
+        // Transform the path points from the robot's local frame to the global frame. 
         tf2::Quaternion q(
             current_pose_.orientation.x,
             current_pose_.orientation.y,
@@ -58,6 +59,7 @@ private:
                 current_path_.poses[i].pose.position.y,
                 0.0
             );
+            // Frame transformation based on the command_flag_ to handle reverse movement
             if (command_flag_ == REVERSE_NORMAL){
                 p.setX(-p.x());
                 p.setY(-p.y());
@@ -72,6 +74,7 @@ private:
         current_target_index_ = 0;
     }
 
+    // Setting the command_flag_ based on the received message to control the robot's movement
     void CommandCallback(const std_msgs::msg::Int8::SharedPtr msg) {
         if (msg->data == STOP) {
             command_flag_ = STOP;
@@ -95,12 +98,15 @@ private:
         }
     }
 
+    // Odometry Callback
     void odomCallback(const nav_msgs::msg::Odometry::SharedPtr msg) {
         current_pose_ = msg->pose.pose;
         computeControlCommand();
     }
 
     void computeControlCommand() {
+
+        // Handle the STOP command by publishing a zero velocity command and clearing the path
         if (command_flag_ == STOP) {
             geometry_msgs::msg::TwistStamped stop_msg;
             stop_msg.header.stamp = this->now();
@@ -113,6 +119,7 @@ private:
             return; 
         }
         
+
         if (command_flag_ == FORWARD || command_flag_ == REVERSE_FORWARD) {
             geometry_msgs::msg::TwistStamped straight_msg;
             straight_msg.header.stamp = this->now();
@@ -129,6 +136,7 @@ private:
             return; 
         }
 
+        // Extract the robot's current orientation (yaw) from the quaternion
         tf2::Quaternion q(
             current_pose_.orientation.x,
             current_pose_.orientation.y,
@@ -176,6 +184,7 @@ private:
 
             double final_distance = std::hypot(target_x - robot_x, target_y - robot_y);
             
+            // To stop the robot when it reaches the final point of the path
             if (final_distance < 0.15) {
                 geometry_msgs::msg::TwistStamped stop_msg;
                 stop_msg.header.stamp = this->now();
@@ -190,11 +199,13 @@ private:
             }
         }
 
+        // Invert the velocity if the command_flag_ indicates reverse movement
         double current_v = v; 
         if (command_flag_ == REVERSE_NORMAL) {
             current_v = -v;   
         }
 
+        // Compute the control command using the Pure Pursuit algorithm
         double angle_to_target = std::atan2(target_y - robot_y, target_x - robot_x);
         double alpha = angle_to_target - yaw;
         alpha = std::atan2(std::sin(alpha), std::cos(alpha));

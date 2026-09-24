@@ -42,11 +42,13 @@ public:
         current_path_.header.frame_id = "odom";
     }
     
+    // Used to "canc" button
     void ClearFunction() {
         current_path_.poses.clear();
         canvas_.setTo(cv::Scalar(255, 255, 255));
         cv::imshow("Mouse Trajectory", canvas_);
     }
+    // Used to "space" button
     void SpawnRobot() {
         // RViz (Odometry Reset)
         if (!odom_reset_client_->wait_for_service(std::chrono::seconds(1))) {
@@ -106,23 +108,27 @@ private:
     }
 
     void processMouse(int event, int x, int y, int flags) {
+        // Every time the mouse is clicked, clear the path and reset the direction
         if (event == cv::EVENT_LBUTTONDOWN) {
             current_path_.poses.clear(); 
             direction_set_ = false;
             last_x_pixel_ = x;
             last_y_pixel_ = y;
         }
+        // Use to stop the robot when the middle mouse button is clicked.
         else if (event == cv::EVENT_MBUTTONDOWN) {
             std_msgs::msg::Int8 state_msg;
             state_msg.data = STOP;
             state_publisher_->publish(state_msg);
         }
+        // Double click to set the robot in forward or reverse forward mode, depending on whether the Ctrl key is pressed.
         else if (event == cv::EVENT_LBUTTONDBLCLK) {
             std_msgs::msg::Int8 state_msg;
             state_msg.data = (flags & cv::EVENT_FLAG_CTRLKEY) ? REVERSE_FORWARD : FORWARD;
             int8_t command_flag_ = state_msg.data;
             state_publisher_->publish(state_msg);
         }
+        // Trajectory Creation
         else if (event == cv::EVENT_MOUSEMOVE && (flags & cv::EVENT_FLAG_LBUTTON)) { 
             std_msgs::msg::Int8 state_msg;
             state_msg.data = (flags & cv::EVENT_FLAG_CTRLKEY) ? REVERSE_NORMAL : NORMAL;
@@ -133,13 +139,16 @@ private:
                 last_x_pixel_ = x;
                 last_y_pixel_ = y;
             }
-
+            
+            // Convert pixel coordinates to meters
             double x_meters = (x - center_x_) / conversion_factor_;
             double y_meters = -(y - center_y_) / conversion_factor_;
 
             geometry_msgs::msg::PoseStamped new_point;
+            // Set the header and frame_id for the new point. Trajectory are considered for once
             new_point.header.frame_id = std::to_string(current_track_id_);
 
+            // Moving trajectory in local coordinates based on the initial yaw angle
             if (!direction_set_) {
                 if (current_path_.poses.empty()) {
                     start_x_ = x_meters;
@@ -159,6 +168,8 @@ private:
                 }
             } 
 
+            // Computation of path's poses
+
             if (direction_set_) {
                 double dx = x_meters - start_x_;
                 double dy = y_meters - start_y_;
@@ -166,17 +177,12 @@ private:
                 double local_x = dx * std::cos(-initial_yaw_) - dy * std::sin(-initial_yaw_);
                 double local_y = dx * std::sin(-initial_yaw_) + dy * std::cos(-initial_yaw_);
 
-                // if (command_flag_ == REVERSE_NORMAL) { 
-                //     new_point.pose.position.x = -local_x;
-                //     new_point.pose.position.y = local_y;
-                // }
-                // else {
                 new_point.pose.position.x = local_x;
                 new_point.pose.position.y = local_y;
-                // }
                 current_path_.poses.push_back(new_point);
             }
             
+            // Draw the trajectory on the canvas
             cv::line(canvas_, cv::Point(last_x_pixel_, last_y_pixel_), cv::Point(x, y), cv::Scalar(255, 0, 0), 2);
             last_x_pixel_ = x;
             last_y_pixel_ = y;
@@ -184,6 +190,7 @@ private:
             cv::imshow("Mouse Trajectory", canvas_);
             cv::waitKey(1);
         } 
+        // Publish the path when the left mouse button is released
         else if (event == cv::EVENT_LBUTTONUP) {
             if (!current_path_.poses.empty()) {
                 path_publisher_->publish(current_path_);
