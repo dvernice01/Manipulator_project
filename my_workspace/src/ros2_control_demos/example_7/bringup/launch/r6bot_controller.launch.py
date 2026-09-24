@@ -1,0 +1,137 @@
+# Copyright 2023 ros2_control Development Team
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
+from launch.substitutions import Command, LaunchConfiguration, PathSubstitution
+
+from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
+from launch_ros.parameter_descriptions import ParameterValue
+
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.actions import TimerAction
+
+
+def generate_launch_description():
+    return LaunchDescription(
+        [
+            DeclareLaunchArgument(
+                "gui",
+                default_value="true",
+                description="Start RViz2 automatically with this launch file.",
+            ),
+            # Control node
+            Node(
+                package="controller_manager",
+                executable="ros2_control_node",
+                parameters=[
+                    {"use_sim_time": True},
+                    PathSubstitution(FindPackageShare("ros2_control_demo_example_7"))
+                    / "config"
+                    / "r6bot_controller.yaml"
+                ],
+                output="both",
+            ),
+            # robot_state_publisher with robot_description from xacro
+            Node(
+                package="robot_state_publisher",
+                executable="robot_state_publisher",
+                output="both",
+                parameters=[
+                    {
+                        "use_sim_time": True,
+                        "robot_description": ParameterValue(
+                            Command(
+                                [
+                                    "xacro",
+                                    " ",
+                                    PathSubstitution(FindPackageShare("ros2_control_demo_example_7"))
+                                    / "urdf"
+                                    / "r6bot.urdf.xacro",
+                                ]
+                            ),
+                            value_type=str
+                        )
+                    }
+                ],
+            ),
+            Node(
+                package="ros_gz_bridge",
+                executable="parameter_bridge",
+                name="camera_bridge",
+                arguments=[
+                    "/camera/depth/points@sensor_msgs/msg/PointCloud2[gz.msgs.PointCloudPacked",
+                    "/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock"
+                ],
+                parameters=[{"use_sim_time": True}],
+                output="screen",
+            ),
+            # Avvia il nuovo Gazebo (ambiente vuoto in esecuzione)
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource([
+                    PathSubstitution(FindPackageShare("ros_gz_sim")),
+                    "/launch/gz_sim.launch.py",
+                ]),
+                launch_arguments={"gz_args": ["-r ", PathSubstitution(FindPackageShare("ros2_control_demo_example_7")) / "worlds" / "my_world.sdf"]}.items(),
+            ),
+            # Spawna il robot leggendo il topic /robot_description
+            Node(
+                package="ros_gz_sim",
+                executable="create",
+                arguments=[
+                    "-topic", "robot_description",
+                    "-name", "r6bot",
+                    "-allow_renaming", "true",
+                ],
+                parameters=[{"use_sim_time": True}],
+                output="screen",
+            ),
+            TimerAction(
+                period=10.0,  
+                actions=[
+                    Node(
+                        package="rviz2",
+                        executable="rviz2",
+                        name="rviz2",
+                        output="log",
+                        arguments=[
+                            "-d",
+                            PathSubstitution(FindPackageShare("ros2_control_demo_description"))
+                            / "r6bot/rviz"
+                            / "view_robot.rviz",
+                        ],
+                        parameters=[{"use_sim_time": True}],
+                        condition=IfCondition(LaunchConfiguration("gui")),
+                    )
+                ]
+            ),
+            Node(
+                package="controller_manager",
+                executable="spawner",
+                name="controller_spawner",
+                arguments=[
+                    "joint_state_broadcaster",
+                    "r6bot_controller",
+                    "--param-file",
+                    PathSubstitution(FindPackageShare("ros2_control_demo_example_7"))
+                    / "config"
+                    / "r6bot_controller.yaml",
+                ],
+                parameters=[{"use_sim_time": True}],
+            ),
+        ]
+    )
