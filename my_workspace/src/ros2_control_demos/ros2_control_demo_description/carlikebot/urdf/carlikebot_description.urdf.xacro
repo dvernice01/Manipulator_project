@@ -258,6 +258,74 @@
       <mimic joint="${prefix}virtual_front_wheel_joint" multiplier="1.0" offset="0.0"/>
     </joint>
 
+
+    <!-- Camera integration -->
+
+    <!-- Camera Link -->
+    <link name="${prefix}camera_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <box size="0.05 0.03 0.03"/>
+        </geometry>
+        <material name="black">
+          <color rgba="0 0 0 1"/>
+        </material>
+      </visual>
+      <collision>
+        <geometry>
+          <box size="0.05 0.03 0.03"/>
+        </geometry>
+      </collision>
+      <inertial>
+        <mass value="0.1" />
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001" />
+      </inertial>
+    </link>
+
+    <!-- Camera Optical Link (for ROS image standards) -->
+    <link name="${prefix}camera_link_optical"></link>
+
+    <!-- Camera Main Joint (Attached to chassis) -->
+    <joint name="${prefix}camera_joint" type="fixed">
+      <parent link="${prefix}chassis_link"/>
+      <child link="${prefix}camera_link"/>
+      <origin xyz="0.2625 0 0.03" rpy="0 ${-15 * (PI / 180)} 0"/>
+    </joint>
+
+    <!-- Camera Optical Joint -->
+    <joint name="${prefix}camera_optical_joint" type="fixed">
+      <parent link="${prefix}camera_link"/>
+      <child link="${prefix}camera_link_optical"/>
+      <origin xyz="0 0 0" rpy="-1.5707 0 -1.5707"/>
+    </joint>
+
+    <!-- ======================================================================= -->
+    <!-- RGB-D Gazebo Plugin definition                                          -->
+    <!-- ======================================================================= -->
+    <gazebo reference="${prefix}camera_link">
+      <!-- Depth sensor -->
+      <sensor type="rgbd_camera" name="realsense_camera">
+        <always_on>true</always_on>
+        <update_rate>15.0</update_rate>
+        <topic>camera/depth</topic> 
+        <camera>
+          <horizontal_fov>1.047198</horizontal_fov> 
+          <image>
+            <width>640</width> <!-- Resolution -->
+            <height>480</height>
+            <format>R8G8B8</format> 
+          </image>
+          <clip>
+            <near>0.05</near> <!-- Minimum vision distance (5cm) -->
+            <far>3.0</far>   <!-- Maximum vision distance (3 meters) -->
+          </clip>
+        </camera>
+      </sensor>
+    </gazebo>
+    
+
   </xacro:macro>
 
 </robot>
