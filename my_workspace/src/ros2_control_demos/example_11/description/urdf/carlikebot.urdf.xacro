@@ -1,19 +1,26 @@
 <?xml version="1.0"?>
-<!-- 4 Wheel Robot with front steering and rear drive -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="carlikebot_robot">
-  <xacro:arg name="prefix" default="" />
+  <xacro:arg name="prefix" default="car_" />
 
   <xacro:include filename="$(find ros2_control_demo_description)/carlikebot/urdf/carlikebot_description.urdf.xacro" />
+  <xacro:include filename="$(find ros2_control_demo_description)/r6bot/urdf/r6bot_description.urdf.xacro" />
 
-  <!-- Import Rviz colors -->
   <xacro:include filename="$(find ros2_control_demo_description)/carlikebot/urdf/carlikebot.materials.xacro" />
 
-  <!-- Import carlikebot ros2_control description -->
   <xacro:include filename="$(find ros2_control_demo_example_11)/ros2_control/carlikebot.ros2_control.xacro" />
+  <xacro:include filename="$(find ros2_control_demo_example_7)/ros2_control/r6bot.ros2_control.xacro" />
 
   <xacro:carlikebot prefix="$(arg prefix)" />
+  <xacro:r6bot_description />
 
-  <xacro:carlikebot_ros2_control
-    name="CarlikeBot" prefix="$(arg prefix)" />
+  <xacro:carlikebot_ros2_control name="CarlikeBot" prefix="$(arg prefix)" />
+  <xacro:r6bot_ros2_control name="r6bot" />
+
+
+  <joint name="robots_joint" type="fixed">
+    <parent link="$(arg prefix)chassis_link" />
+    <child link="base_link" />
+    <origin xyz="0.2 0 0.03" rpy="0 0 0"/>
+  </joint>
 
 </robot>

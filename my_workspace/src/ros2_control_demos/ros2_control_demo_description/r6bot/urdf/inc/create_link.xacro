@@ -6,18 +6,19 @@
         xyz_offset
         rpy_offset
         mesh_package
-        mesh_name">
+        mesh_name
+        mesh_scale:= '1 1 1'">
     <link name="${link_name}">
       <visual>
         <origin xyz="${xyz_offset}" rpy="${rpy_offset}"/>
         <geometry>
-          <mesh filename="package://${mesh_package}/meshes/visual/${mesh_name}.dae"/>
+          <mesh filename="package://${mesh_package}/meshes/visual/${mesh_name}.dae" scale="${mesh_scale}"/>
         </geometry>
       </visual>
       <collision>
         <origin xyz="${xyz_offset}" rpy="${rpy_offset}"/>
         <geometry>
-          <mesh filename="package://${mesh_package}/meshes/collision/${mesh_name}.stl"/>
+          <mesh filename="package://${mesh_package}/meshes/collision/${mesh_name}.stl" scale="${mesh_scale}"/>
         </geometry>
       </collision>
       <inertial>
